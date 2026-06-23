@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   computeCompliance, TRUCK_MODELS, TRUCK_SPECS, FORKLIFT_MODELS,
   type CalcData,
@@ -233,8 +233,13 @@ const ThankYouState = ({ data, result, onRestart }: {
 }) => {
   const report = useMemo(() => generateReport(data, result), []);
   const [sendState, setSendState] = useState<'sending' | 'sent' | 'error'>('sending');
+  // Guard against double-firing (React StrictMode mounts effects twice in dev,
+  // and a remount must never insert the same report a second time).
+  const sentRef = useRef(false);
 
   useEffect(() => {
+    if (sentRef.current) return;
+    sentRef.current = true;
     let alive = true;
     logLead(data, report).then(res => {
       if (!alive) return;
@@ -451,7 +456,11 @@ export default function StandaloneTool() {
   const result = computeCompliance(data);
   const computedEmpty = result.truckEmpty;
   const computedGVWR  = result.truckGVWR;
-  const leadValid = !!(data.firstName && data.lastName && data.company && data.phone && data.email);
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((data.email || '').trim());
+  const leadValid = !!(
+    data.firstName.trim() && data.lastName.trim() && data.company.trim() &&
+    data.phone.trim() && emailValid
+  );
 
   if (submitted) return (
     <ThankYouState data={data} result={result} onRestart={() => {
